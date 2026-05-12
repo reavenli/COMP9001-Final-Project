@@ -1,0 +1,9 @@
+Sun 1 0 0 yellow 10 True
+Mercury 1.65e-7 0.39 0 gray 6 False
+Venus 2.4e-6 0.72 0 orange 6 False
+Earth 3e-6 1 0 blue 6 False
+Mars 3.2e-7 1.52 0 red 6 False
+Jupiter 9.5e-4 5.2 0 brown 6 False
+Saturn 2.86e-4 9.5 0 gold 6 False
+Uranus 4.4e-5 19.2 0 lightblue 6 False
+Neptune 5.1e-5 30 0 purple 6 False

@@ -1,248 +1,523 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
+
 """
 Created on Wed Apr 29 16:55:33 2026
 HUADUO LI
+sid:550239448
 Python version: 3.13.9 
 | packaged by Anaconda, Inc. 
 | (main, Oct 21 2025, 19:11:29) [Clang 20.1.8 ]
 Tkinter version: 8.6
 9001 final project
 @author: lihuaduo
+
+Relativistic Solar System Simulator
+Einstein-inspired orbital mechanics simulation
+
+Features:
+- Newtonian + relativistic gravity correction
+- Multi-body orbital simulation
+- Velocity Verlet integration
+- Orbit trails
+- Mercury perihelion precession
+- Zoom interaction
+- Tkinter GUI
+- File-based planetary system
 """
 
-import tkinter as tk            # Import Tkinter for GUI rendering
-import math                     # Import math module for calculations
 
-# ---------- Constants ----------
-G = 4 * math.pi**2             # Gravitational constant (scaled for astronomical units)
-dt = 0.0002                    # Time step for simulation
+import tkinter as tk                       # Import Tkinter for GUI rendering
+import math                                # Import math module for calculations
 
+# =========================================================
+# Constants
+# =========================================================
 
-# ---------- Body Class ----------
+G = 4 * math.pi**2                         # Gravitational constant in AU/year units
+c = 63239.7                                # Speed of light in AU/year
+
+dt = 0.001                                 # Simulation timestep
+
+WIDTH = 1000                               # Width of simulation window
+HEIGHT = 1000                              # Height of simulation window
+
+# =========================================================
+# Body Class
+# =========================================================
+
 class Body:
+
     def __init__(self, name, mass, pos, color, radius=5, fixed=False):
-        self.name = name       # Name of the celestial body (e.g., Sun, Earth)
-        self.mass = mass       # Mass of the body
-        self.pos = pos[:]      # Position as a list [x, y] (copy to avoid reference issues)
-        self.vel = [0, 0]      # Velocity vector [vx, vy], initially zero
-        self.color = color     # Display color in GUI
-        self.radius = radius   # Radius for drawing on canvas
-        self.fixed = fixed     # Whether the body is fixed (e.g., Sun)
-        self.trail = []        # Store previous positions for orbit trail
+
+        self.name = name                   # Name of the celestial body
+        self.mass = mass                   # Mass of the body
+        self.pos = pos[:]                  # Copy of position vector [x, y]
+        self.vel = [0, 0]                  # Initial velocity vector
+
+        self.color = color                 # Display color
+        self.radius = radius               # Radius for GUI drawing
+        self.fixed = fixed                 # Whether body is fixed in space
+
+        self.trail = []                    # Store previous positions
+
+        self.last_r = None                 # Store previous orbital distance
+        self.perihelion_points = []        # Store perihelion markers
 
 
-# ---------- File Input ----------
-def load_bodies(filename):
-    bodies = []                # List to store all body objects
+# =========================================================
+# Load Planet Data From File
+# =========================================================
+
+
+def load_bodies(filename):                 # Function to load planets from file
+
+    bodies = []                            # Create empty body list
+
     try:
-        with open(filename, "r") as f:     # Open input file
-            for line in f:
-                parts = line.strip().split()   # Split each line into components
 
-                # basic validation
-                if len(parts) < 7:
-                    continue   # Skip invalid or incomplete lines
+        with open(filename, "r") as f:    # Open data file
 
-                name = parts[0]               # Body name
-                mass = float(parts[1])        # Convert mass to float
-                x = float(parts[2])           # X position
-                y = float(parts[3])           # Y position
-                color = parts[4]              # Display color
-                radius = int(parts[5])        # Radius for drawing
-                fixed = parts[6] == "True"    # Convert string to boolean
+            for line in f:                 # Read file line by line
 
-                bodies.append(Body(name, mass, [x, y], color, radius, fixed))  # Create Body object
+                parts = line.strip().split() # Split line into tokens
 
-    except FileNotFoundError:
-        print("Error: file not found.")   # Handle missing file
-        return []                        # Return empty list
+                if len(parts) < 7:         # Validate data format
+                    continue               # Skip invalid lines
 
-    except ValueError:
-        print("Error: invalid data in file.")  # Handle conversion errors
-        return []
+                name = parts[0]            # Read body name
+                mass = float(parts[1])     # Read body mass
+                x = float(parts[2])        # Read x coordinate
+                y = float(parts[3])        # Read y coordinate
+                color = parts[4]           # Read display color
+                radius = int(parts[5])     # Read body radius
+                fixed = parts[6] == "True" # Convert fixed flag to boolean
 
-    return bodies   # Return list of bodies
+                bodies.append(             # Create and append Body object
+                    Body(name, mass, [x, y], color, radius, fixed)
+                )
+
+    except FileNotFoundError:              # Handle missing file error
+
+        print("planet.txt not found")     # Print error message
+        return []                          # Return empty list
+
+    return bodies                          # Return loaded bodies
 
 
-# ---------- Recursion ----------
+# =========================================================
+# Recursive Counting Function
+# =========================================================
+
+
 def count_bodies_recursive(bodies, index=0):
-    if index >= len(bodies):       # Base case: reached end of list
-        return 0
-    return 1 + count_bodies_recursive(bodies, index + 1)  # Recursive count
+
+    if index >= len(bodies):               # Base case
+        return 0                           # Stop recursion
+
+    return 1 + count_bodies_recursive(     # Recursive step
+        bodies,
+        index + 1
+    )
 
 
-# ---------- Orbit Initialization ----------
-def init_orbit(body, sun, e):
-    dx = body.pos[0] - sun.pos[0]   # X distance from Sun
-    dy = body.pos[1] - sun.pos[1]   # Y distance from Sun
-    r = math.sqrt(dx**2 + dy**2)    # Radial distance
-
-    a = r / (1 - e)                 # Semi-major axis (from eccentricity)
-    v = math.sqrt(G * sun.mass * (2/r - 1/a))  # Orbital velocity (vis-viva equation)
-
-    body.vel[0] = -v * dy / r       # Set perpendicular velocity (x component)
-    body.vel[1] = v * dx / r        # Set perpendicular velocity (y component)
+# =========================================================
+# Orbit Initialization
+# =========================================================
 
 
-# ---------- Physics ----------
+def init_orbit(body, sun, eccentricity):
+
+    dx = body.pos[0] - sun.pos[0]          # X distance from Sun
+    dy = body.pos[1] - sun.pos[1]          # Y distance from Sun
+
+    r = math.sqrt(dx**2 + dy**2)           # Radial distance
+
+    a = r / (1 - eccentricity)             # Semi-major axis
+
+    v = math.sqrt(                         # Vis-viva equation
+        G * sun.mass * (2/r - 1/a)
+    )
+
+    body.vel[0] = -v * dy / r              # Perpendicular x velocity
+    body.vel[1] =  v * dx / r              # Perpendicular y velocity
+
+
+# =========================================================
+# Physics Engine
+# =========================================================
+
 class Physics:
-    def __init__(self, bodies):
-        self.bodies = bodies       # Store all bodies in simulation
+
+    def __init__(self, bodies, relativistic=True):
+
+        self.bodies = bodies               # Store all bodies
+        self.relativistic = relativistic   # Enable relativistic correction
+
 
     def forces(self):
-        F = []                     # List of force vectors
+
+        F = []                             # Store force vectors
 
         for i, b1 in enumerate(self.bodies):
-            fx, fy = 0, 0          # Initialize net force
+
+            fx = 0                         # Net force x component
+            fy = 0                         # Net force y component
 
             for j, b2 in enumerate(self.bodies):
-                if i == j:
-                    continue       # Skip self-interaction
 
-                dx = b2.pos[0] - b1.pos[0]   # Distance in x
-                dy = b2.pos[1] - b1.pos[1]   # Distance in y
-                r = math.sqrt(dx*dx + dy*dy) + 1e-9  # Distance with small epsilon
+                if i == j:                 # Skip self-interaction
+                    continue
 
-                f = G * b1.mass * b2.mass / r**2     # Gravitational force magnitude
+                dx = b2.pos[0] - b1.pos[0] # Distance x
+                dy = b2.pos[1] - b1.pos[1] # Distance y
 
-                fx += f * dx / r    # X component of force
-                fy += f * dy / r    # Y component of force
+                r = math.sqrt(dx*dx + dy*dy) + 1e-9 # Radial distance
 
-            F.append((fx, fy))      # Store total force for this body
+                # =====================================================
+                # Newtonian Gravity
+                # =====================================================
 
-        return F
+                f_newton = G * b1.mass * b2.mass / r**2
+
+                # =====================================================
+                # Einstein-Inspired Relativistic Correction
+                # =====================================================
+
+                if self.relativistic:
+
+                    correction = 1 + (3 * G * b2.mass) / (r * c**2)
+
+                    f = f_newton * correction
+
+                else:
+
+                    f = f_newton
+
+                fx += f * dx / r           # Add x force component
+                fy += f * dy / r           # Add y force component
+
+            F.append((fx, fy))             # Save total force
+
+        return F                           # Return force list
 
 
     def step(self, dt):
-        F = self.forces()           # Compute initial forces
 
-        # Compute acceleration for each body
-        acc = [(fx/b.mass if not b.fixed else 0,
-                fy/b.mass if not b.fixed else 0)
-               for b,(fx,fy) in zip(self.bodies,F)]
+        F = self.forces()                  # Compute current forces
 
-        # Update positions using Velocity Verlet method
-        for i,b in enumerate(self.bodies):
-            if b.fixed:
-                continue           # Skip fixed bodies
+        acc = [                            # Compute accelerations
+            (
+                fx/b.mass if not b.fixed else 0,
+                fy/b.mass if not b.fixed else 0
+            )
+            for b, (fx, fy) in zip(self.bodies, F)
+        ]
 
-            ax,ay = acc[i]
-            b.pos[0] += b.vel[0]*dt + 0.5*ax*dt*dt
-            b.pos[1] += b.vel[1]*dt + 0.5*ay*dt*dt
+        # =====================================================
+        # Position Update (Velocity Verlet)
+        # =====================================================
 
-        F2 = self.forces()         # Recalculate forces after position update
+        for i, b in enumerate(self.bodies):
 
-        # Update velocities
-        for i,b in enumerate(self.bodies):
             if b.fixed:
                 continue
 
-            ax1,ay1 = acc[i]
-            fx,fy = F2[i]
-            ax2,ay2 = fx/b.mass, fy/b.mass
+            ax, ay = acc[i]                # Current acceleration
 
-            b.vel[0] += 0.5*(ax1+ax2)*dt
-            b.vel[1] += 0.5*(ay1+ay2)*dt
+            b.pos[0] += b.vel[0]*dt + 0.5*ax*dt*dt
+            b.pos[1] += b.vel[1]*dt + 0.5*ay*dt*dt
 
 
-# ---------- Setup ----------
-bodies = load_bodies("planet.txt")   # Load data from file
+        F2 = self.forces()                 # Recalculate forces
 
-if not bodies:
-    raise SystemExit("Simulation stopped due to input error.")  # Exit if load failed
+        # =====================================================
+        # Velocity Update
+        # =====================================================
 
-# find sun with break
-sun = None
-for b in bodies:
+        for i, b in enumerate(self.bodies):
+
+            if b.fixed:
+                continue
+
+            ax1, ay1 = acc[i]              # Old acceleration
+
+            fx, fy = F2[i]                 # New force
+
+            ax2 = fx / b.mass              # New acceleration x
+            ay2 = fy / b.mass              # New acceleration y
+
+            b.vel[0] += 0.5 * (ax1 + ax2) * dt
+            b.vel[1] += 0.5 * (ay1 + ay2) * dt
+
+
+# =========================================================
+# Setup Simulation
+# =========================================================
+
+bodies = load_bodies("planet.txt")        # Load all planets
+
+if not bodies:                             # Stop if loading failed
+    raise SystemExit("Simulation aborted")
+
+sun = None                                 # Initialize Sun variable
+
+for b in bodies:                           # Find Sun object
+
     if b.name == "Sun":
+
         sun = b
-        break            # Stop loop once Sun is found
+        break
 
-if sun is None:
-    raise ValueError("No Sun found in data.")   # Ensure Sun exists
+if sun is None:                            # Validate Sun existence
+    raise ValueError("Sun not found")
 
-# init orbits
-for b in bodies:
+
+for b in bodies:                           # Initialize orbits
+
     if b.name != "Sun":
-        init_orbit(b, sun, 0.3)   # Initialize elliptical orbits
 
-physics = Physics(bodies)   # Create physics engine
-
-# recursion usage
-print("Total bodies:", count_bodies_recursive(bodies))  # Print count
+        init_orbit(b, sun, 0.3)
 
 
-# ---------- GUI ----------
-root = tk.Tk()   # Create main window
-canvas = tk.Canvas(root, width=800, height=800, bg="black")  # Drawing area
-canvas.pack()
+physics = Physics(                         # Create physics engine
+    bodies,
+    relativistic=True
+)
 
-zoom = 25   # Zoom scaling factor
-# ---------- Mouse Zoom ----------
+print(                                     # Print recursive body count
+    "Total bodies:",
+    count_bodies_recursive(bodies)
+)
+
+
+# =========================================================
+# GUI Setup
+# =========================================================
+
+root = tk.Tk()                             # Create main window
+
+root.title(                                # Set window title
+    "Relativistic Solar System Simulator"
+)
+
+canvas = tk.Canvas(                        # Create drawing canvas
+    root,
+    width=WIDTH,
+    height=HEIGHT,
+    bg="black"
+)
+
+canvas.pack()                              # Add canvas to window
+
+zoom = 30                                  # Initial zoom scale
+
+
+# =========================================================
+# Mouse Zoom Control
+# =========================================================
+
+
 def on_mousewheel(event):
-    global zoom
 
-    # Windows / Mac
-    if event.delta > 0:
+    global zoom                            # Use global zoom variable
+
+    if event.delta > 0:                    # Zoom in
         zoom *= 1.1
-    else:
+
+    else:                                  # Zoom out
         zoom /= 1.1
 
-    # Limit the scaling range (to prevent the kernel from crashing).
-    zoom = max(5, min(zoom, 200))
+    zoom = max(5, min(zoom, 300))          # Clamp zoom range
 
 
-# Bind scroll wheel events (Windows / Mac)
-canvas.bind("<MouseWheel>", on_mousewheel)
+canvas.bind("<MouseWheel>", on_mousewheel) # Windows/Mac zoom
 
-# Linux compatibility 
-canvas.bind("<Button-4>", lambda e: on_mousewheel(type("e",(object,),{"delta":1})()))
-canvas.bind("<Button-5>", lambda e: on_mousewheel(type("e",(object,),{"delta":-1})()))
+canvas.bind(                               # Linux scroll up
+    "<Button-4>",
+    lambda e: on_mousewheel(type("e", (object,), {"delta":1})())
+)
 
-# ---------- Transform ----------
-def transform(x,y):
-    r = math.sqrt(x*x+y*y)   # Distance from origin
-    if r < 1e-6:
-        return 400,400       # Center if too close
-
-    log_r = math.log1p(r*5)  # Log scaling for better visualization
-    scale = log_r / r
-
-    return 400 + x*scale*zoom, 400 + y*scale*zoom  # Map to screen coords
+canvas.bind(                               # Linux scroll down
+    "<Button-5>",
+    lambda e: on_mousewheel(type("e", (object,), {"delta":-1})())
+)
 
 
-# ---------- Update ----------
+# =========================================================
+# Coordinate Transform
+# =========================================================
+
+
+def transform(x, y):
+
+    r = math.sqrt(x*x + y*y)               # Distance from origin
+
+    if r < 1e-6:                           # Prevent division by zero
+        return WIDTH/2, HEIGHT/2
+
+    log_r = math.log1p(r * 5)              # Logarithmic scaling
+
+    scale = log_r / r                      # Compute scaling factor
+
+    return (                               # Convert to screen coords
+        WIDTH/2 + x * scale * zoom,
+        HEIGHT/2 + y * scale * zoom
+    )
+
+
+# =========================================================
+# Draw Background Grid
+# =========================================================
+
+
+def draw_grid():
+
+    spacing = 40                           # Grid spacing
+
+    for i in range(0, WIDTH, spacing):
+
+        canvas.create_line(                # Draw vertical lines
+            i,
+            0,
+            i,
+            HEIGHT,
+            fill="#111"
+        )
+
+    for j in range(0, HEIGHT, spacing):
+
+        canvas.create_line(                # Draw horizontal lines
+            0,
+            j,
+            WIDTH,
+            j,
+            fill="#111"
+        )
+
+
+# =========================================================
+# Main Animation Loop
+# =========================================================
+
+
 def update():
-    canvas.delete("all")   # Clear previous frame
 
-    for _ in range(5):
-        physics.step(dt)   # Advance simulation multiple steps per frame
+    canvas.delete("all")                  # Clear previous frame
 
-    for b in bodies:
-        x,y = transform(b.pos[0], b.pos[1])  # Convert to screen coords
+    draw_grid()                            # Draw spacetime grid
 
-        b.trail.append((x,y))   # Store trail point
-        if len(b.trail) > 200:
-            b.trail.pop(0)      # Limit trail length
-
-        # Draw orbit trail
-        for i in range(len(b.trail)-1):
-            canvas.create_line(*b.trail[i], *b.trail[i+1], fill=b.color)
-        speed = math.sqrt(b.vel[0]**2 + b.vel[1]**2)
-        canvas.create_text(x, y + 15,text=f"{b.name} speed: {speed:.2f}",#This speed is the speed within the entire simulated coordinate system (usually with the Sun as a reference, but essentially a global coordinate system).Therefore, it represents the speed of a planet's motion in a "cosmic coordinate system".
-                       fill="white")
-
-        # Draw body
-        canvas.create_oval(x-b.radius, y-b.radius,
-                           x+b.radius, y+b.radius,
-                           fill=b.color)
-
-        # Draw label
-        canvas.create_text(x, y-10, text=b.name, fill="white")# print planet label here
-
-    root.after(16, update)   # Schedule next frame (~60 FPS)
+    for _ in range(20):                    # Run multiple physics steps
+        physics.step(dt)
 
 
-update()        # Start animation loop
-root.mainloop() # Run GUI event loop
+    canvas.create_text(                    # Display simulation mode
+        160,
+        20,
+        text="Einstein Relativistic Mode",
+        fill="cyan",
+        font=("Arial", 14)
+    )
+
+
+    for b in bodies:                       # Process every body
+
+        x, y = transform(                  # Convert world coords
+            b.pos[0],
+            b.pos[1]
+        )
+
+        b.trail.append((x, y))             # Save trail point
+
+        if len(b.trail) > 400:             # Limit trail size
+            b.trail.pop(0)
+
+
+        for i in range(len(b.trail)-1):    # Draw orbit trail
+
+            canvas.create_line(
+                *b.trail[i],
+                *b.trail[i+1],
+                fill=b.color
+            )
+
+
+        r = math.sqrt(                     # Current orbital radius
+            b.pos[0]**2 + b.pos[1]**2
+        )
+
+        if b.last_r is not None:
+
+            if r > b.last_r and len(b.trail) > 20:
+
+                b.perihelion_points.append((x, y))
+
+        b.last_r = r                       # Save previous radius
+
+
+        for px, py in b.perihelion_points: # Draw perihelion markers
+
+            canvas.create_oval(
+                px-2,
+                py-2,
+                px+2,
+                py+2,
+                fill="white"
+            )
+
+
+        canvas.create_oval(                # Draw celestial body
+            x - b.radius,
+            y - b.radius,
+            x + b.radius,
+            y + b.radius,
+            fill=b.color
+        )
+
+
+        speed = math.sqrt(                 # Compute speed magnitude
+            b.vel[0]**2 + b.vel[1]**2
+        )
+
+
+        canvas.create_text(                # Draw planet name
+            x,
+            y - 12,
+            text=b.name,
+            fill="white"
+        )
+
+
+        canvas.create_text(                # Draw velocity
+            x,
+            y + 15,
+            text=f"v={speed:.3f}",
+            fill="white"
+        )
+
+
+        if b.name != "Sun":               # Skip Sun time dilation
+
+            dilation = math.sqrt(          # Compute time dilation
+                max(0, 1 - 2*G*sun.mass/(r*c**2))
+            )
+
+            canvas.create_text(            # Display time dilation
+                x,
+                y + 30,
+                text=f"t={dilation:.8f}",
+                fill="yellow"
+            )
+
+
+    root.after(16, update)                 # Schedule next frame
+
+
+# =========================================================
+# Start Simulation
+# =========================================================
+
+update()                                   # Start animation loop
+
+root.mainloop()                            # Run Tkinter event loop

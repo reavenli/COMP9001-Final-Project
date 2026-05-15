@@ -1,158 +1,259 @@
-# COMP9001-Final-Project
-N-Body Solar System Simulation
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue May  5 12:26:20 2026
+# Relativistic N-Body Solar System Simulation
 
-@author: lihuaduo
-"""
+A real-time Einstein-inspired solar system simulator developed using Python and Tkinter.
 
-N-Body Solar System Simulation (Final Project 9001)
+This project simulates planetary motion using Newtonian gravity combined with relativistic correction terms inspired by General Relativity. The simulator visualizes orbital mechanics, gravitational interactions, and relativistic orbital behavior in an interactive GUI environment.
 
- 1. Project Overview
+---
 
-This project implements a **2D solar system simulation** using Python and Tkinter. It models gravitational interactions between celestial bodies based on Newtonian physics.
+# 1. Project Overview
+
+This project implements a **2D relativistic-inspired solar system simulation** using Python and Tkinter.
+
+The simulation models gravitational interactions between celestial bodies and visualizes orbital motion in real time.
 
 Main features:
 
 * Multi-body gravitational simulation
+* Relativistic orbital correction
 * Elliptical orbit initialization
-* Real-time animation using GUI
-* Zoomable visualization
-* Orbit trails and speed display
+* Real-time GUI animation
+* Orbit trail visualization
+* Velocity display
+* Interactive zoom system
+* Recursive body counting
+* File-based planetary system loading
 
+---
 
-2. How to Run
- Requirements
+# 2. Requirements
 
-Python version: 3.13.9 
-| packaged by Anaconda, Inc. 
-| (main, Oct 21 2025, 19:11:29) [Clang 20.1.8 ]
-Tkinter version: 8.6
-9001 final project
+The project was developed and tested using:
 
-Run Steps
+* Python 3.13.9
+* Tkinter 8.6
 
-1. Make sure the following files are in the same directory:
+Required Python modules:
 
-   * `project_9001.py`
-   * `planet.txt`
+```python
+tkinter
+math
+```
 
-2. Run the program:
+Tkinter is included with most standard Python installations.
+
+---
+
+# 3. Project Files
+
+Make sure the following files are located in the same directory:
+
+```text
+project_9001.py
+planet.txt
+README.md
+```
+
+Recommended structure:
+
+```text
+Relativistic-Solar-System/
+│
+├── project_9001.py
+├── planet.txt
+├── README.md
+└── screenshot.png
+```
+
+---
+
+# 4. How To Run
+
+## Step 1 — Open Terminal
+
+Open Terminal (Mac/Linux) or Command Prompt (Windows).
+
+---
+
+## Step 2 — Navigate To Project Folder
+
+Example:
+
+```bash
+cd path/to/Relativistic-Solar-System
+```
+
+Example on Mac:
+
+```bash
+cd ~/Desktop/Relativistic-Solar-System
+```
+
+---
+
+## Step 3 — Run The Program
+
+Execute:
 
 ```bash
 python project_9001.py
 ```
 
- Expected Output
+or on some systems:
 
-* A window (800×800) will open
-* Planets orbit around the Sun
-* Each planet displays:
-
-  * Name
-  * Current speed
-* Orbit trails are visible
-
-Controls
-
-| Action      | Description   |
-| ----------- | ------------- |
-| Mouse wheel | Zoom in / out |
+```bash
+python3 project_9001.py
+```
 
 ---
 
-3. Input File Design (`planet.txt`)
+# 5. Expected Output
+
+After running the program:
+
+* A simulation window will open
+* Planets orbit around the Sun
+* Each planet displays:
+
+  * Planet name
+  * Current velocity
+  * Relativistic time factor
+* Orbit trails are rendered in real time
+* Relativistic orbital precession can be observed
+
+---
+
+# 6. Controls
+
+| Action      | Description |
+| ----------- | ----------- |
+| Mouse Wheel | Zoom in/out |
+
+The zoom system supports:
+
+* Windows
+* MacOS
+* Linux
+
+If the display appears too small or too large, use the mouse wheel to adjust the zoom level.
+
+---
+
+# 7. Input File Design (`planet.txt`)
 
 Each line defines a celestial body using the following format:
 
-```
+```text
 Name Mass X Y Color Radius Fixed
 ```
 
 Example:
 
-```
+```text
 Earth 3e-6 1 0 blue 6 False
 ```
 
-Explanation:
+Parameter explanation:
 
-* Mass: in solar mass units
-* Position: in astronomical units (AU)
-* Color: used for GUI display
-* Radius: visual size
-* Fixed: whether the body is stationary (e.g., Sun)
-
----
-
-4. System Design
-
-4.1 Body Class
-
-The `Body` class represents each celestial object.
-
-Attributes:
-
-* Position and velocity
-* Mass
-* Display color
-* Radius
-* Orbit trail
-
-Design purpose:
-
-* Encapsulates both physical and visual properties
-* Simplifies simulation and rendering logic
+| Parameter | Description                    |
+| --------- | ------------------------------ |
+| Name      | Celestial body name            |
+| Mass      | Mass in solar-mass units       |
+| X Y       | Initial position in AU         |
+| Color     | GUI display color              |
+| Radius    | Visual radius                  |
+| Fixed     | Whether the body is stationary |
 
 ---
 
-4.2 Physics Engine
+# 8. Physics Model
 
-The `Physics` class is responsible for:
+The simulation combines:
 
-* Computing gravitational forces
-* Updating positions and velocities
+* Newtonian gravity
+* Relativistic correction terms
 
-Integration Method: Velocity Verlet
+Newtonian gravity:
 
-This method is used instead of Euler integration because:
+F = G\frac{m_1m_2}{r^2}
 
-* It is more stable
-* It preserves energy better
-* It is suitable for orbital simulations
+Relativistic correction:
 
----
+F_{rel} \approx F_N\left(1+\frac{3GM}{rc^2}\right)
 
-4.3 Gravitational Model
+The relativistic correction introduces:
 
-The simulation uses Newton's law of gravitation:
-
-F = G * m1 * m2 / r^2
-
-Design notes:
-
-* The gravitational constant is scaled as:
-  G = 4π²
-* This works well with astronomical units and keeps values stable
+* orbital precession
+* non-closed elliptical orbits
+* Einstein-inspired orbital behavior
 
 ---
 
-4.4 Orbit Initialization
+# 9. Numerical Integration
+
+The simulation uses the **Velocity Verlet integration method**.
+
+Advantages:
+
+* improved stability
+* better energy conservation
+* more realistic orbital motion
+* suitable for long-term simulation
+
+This method is significantly more accurate than Euler integration.
+
+---
+
+# 10. Orbit Initialization
 
 Initial velocities are calculated using the vis-viva equation:
 
-v = sqrt(GM(2/r - 1/a))
+v = \sqrt{GM\left(\frac{2}{r}-\frac{1}{a}\right)}
 
-Design purpose:
+Purpose:
 
-* Ensures planets start in stable elliptical orbits
-* Avoids chaotic or unrealistic motion
+* generate stable elliptical orbits
+* prevent chaotic initial motion
 
 ---
 
-4.5 Recursion Usage
+# 11. Relativistic Effects
+
+The simulation approximates several General Relativity effects:
+
+## Mercury Perihelion Precession
+
+Planetary orbits slowly rotate over time instead of remaining perfectly closed.
+
+## Gravitational Time Dilation
+
+Time progresses differently near massive objects.
+
+## Einstein-Inspired Orbital Dynamics
+
+Orbital trajectories deviate slightly from purely Newtonian motion.
+
+---
+
+# 12. GUI System
+
+The GUI is implemented using:
+
+* Tkinter window
+* Canvas rendering
+* Real-time animation loop
+
+Features:
+
+* real-time simulation
+* orbit trails
+* velocity display
+* zoom interaction
+* spacetime-inspired visualization
+
+---
+
+# 13. Recursion Usage
 
 Function:
 
@@ -162,79 +263,51 @@ count_bodies_recursive()
 
 Purpose:
 
-* Counts the number of bodies recursively
+* recursively count celestial bodies
 
-Design significance:
+This demonstrates:
 
-* Demonstrates recursion as required by the course
-* Shows understanding of base case and recursive step
-
----
-
-4.6 GUI System (Tkinter)
-
-The GUI is implemented using:
-
-* Tkinter window
-* Canvas for drawing
-* `after()` for animation loop (~60 FPS)
-
-Features:
-
-* Real-time updates
-* Orbit trails
-* Speed display
+* recursion
+* base case design
+* recursive problem solving
 
 ---
 
-4.7 Visualization Design
+# 14. Error Handling
 
-Logarithmic Scaling
+The program handles:
 
-Distance is transformed using logarithmic scaling:
-
-* Prevents outer planets from being too far away
-* Improves visualization of the entire system
-
-Orbit Trails
-
-* Each body stores recent positions
-* Trail length is limited to 200 points
-* Prevents memory overflow
+* missing files
+* invalid data format
+* missing Sun object
+* invalid simulation input
 
 ---
 
-4.8 Zoom Interaction
-
-* Controlled via mouse wheel
-* Supports Windows, Mac, and Linux
-* Zoom range is limited to prevent crashes
-* If you find the display too small, 
-* you can adjust the zoom level on line 182, 
-* or you can use mouse scrolling to zoom in and out. 
-* The zoom value of 25 is only suitable for my computer's window;
-* I'm not sure how it will work on other computer windows, 
-* so I added mouse scrolling and zoom settings specifically to adapt to other computer windows.
-
----
-
-5. Error Handling
-
-The program handles basic errors:
-
-* File not found
-* Invalid data format
-* Missing Sun object
-
----
-
-6. Conclusion
+# 15. Educational Purpose
 
 This project demonstrates:
 
-* Object-oriented programming
-* Numerical physics simulation
-* GUI development
-* Recursion usage
+* object-oriented programming
+* computational physics
+* numerical simulation
+* GUI programming
+* recursion
+* scientific visualization
 
-It integrates physics, visualization, and user interaction into a functional and educational simulation system.
+It integrates physics, mathematics, and real-time visualization into an interactive educational simulation system.
+
+---
+
+# 16. Scientific Disclaimer
+
+This project is NOT a full numerical solution of the Einstein Field Equations.
+
+Instead, it uses a post-Newtonian relativistic approximation inspired by General Relativity in order to maintain computational efficiency and real-time visualization performance.
+
+---
+
+# 17. Author
+
+Huaduo Li
+COMP9001 Final Project
